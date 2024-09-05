@@ -1,0 +1,88 @@
+#!/bin/bash
+
+
+function INSTALLATION ()
+{
+    sudo apt-get update > /dev/null 2>&1
+# list of tools that i would use in this project 
+PACKAGES=( "geoip-bin" "sshpass" "tor" "nmap")
+echo "now we are going to check if some tools are installed and if not we are going to install them ... please wait"
+# goes throw every tool and checks 
+for pkg in "${PACKAGES[@]}"; do
+# see if the tool is installed
+    if ! dpkg -s "$pkg" | grep -q "Status: install ok installed"; then
+        echo "installing  $pkg..."
+# if the tool is not installed now we are installing the tool 
+        sudo apt-get install "$pkg" -y > /dev/null 2>&1
+    else
+# if the tool is already installed we would get this massage 
+        echo "$pkg is already installed "
+    fi
+done
+} 
+INSTALLATION 
+
+ function ANONSURF_INSTALLATION() 
+{
+# checkes if anonsurf is already installed if not we will install it
+# also starting the tool anonsurf 
+    if [[ ! -z $(dpkg -s kali-anonsurf 2>/dev/null) ]]; 
+    then
+        echo -e "kali-anonsurf is already installed."
+    else
+        echo  "we are installing kali-anonsurf please wait "
+        git clone --quiet https://github.com/Und3rf10w/kali-anonsurf.git
+        cd kali-anonsurf
+        bash installer.sh
+        sudo anonsurf start        
+    fi
+    
+    sleep 5
+}
+
+ANONSURF_INSTALLATION
+ 
+function ANNONY()
+{
+# check if the user is anonymous , if not he would exit and if yes he would say also the country that he is from 
+    IP=$(curl -s ifconfig.me)
+    CNTRY=$(geoiplookup $IP | awk '{print $4}')
+    if [ "$CNTRY" = "IL," ]; then
+        echo "your location is not secured , exiting "
+        exit
+        else echo "you are anonymous , you are connected from : $(geoiplookup $IP | awk '{print $5}')"
+    fi
+}
+
+ANNONY
+
+
+
+function REMOTE() 
+{
+#variables that im going to use 
+  icon=$(curl -s ifconfig.me)
+  uptime=$(uptime)
+  country=$(whois $icon | grep Country:| awk '{print $2}')
+  systemctl start ssh 
+  #requesting for information to coonect to ssh 
+  echo "PLEASE ENTER THE IP YOU WOULD LIKE TO CONNECT"
+  read ip 
+  echo "P;EASE ENTER THE USERNAME YOU WANT TO CONNECT TO"
+  read user
+  echo "PLEASE ENTER THE PASSWORD OF THE USER"
+  read -s pass
+#connecting to ssh with a password user and ip and using commands
+  sshpass -p "$pass" ssh -o StrictHostKeyChecking=no "$user@$ip" "echo  $uptime"
+  sshpass -p "$pass" ssh -o StrictHostKeyChecking=no "$user@$ip" "echo  $icon"
+  sshpass -p "$pass" ssh -o StrictHostKeyChecking=no "$user@$ip" "echo $country"
+  
+
+#connecting to ssh with a password user and ip and using command, and transfering the results to a file on my computer
+  sshpass -p "$password" ssh -o StrictHostKeyChecking=no "$user@$ip"  "(whois $ip)" | tee whois.txt
+  
+   sshpass -p "$password" ssh -o StrictHostKeyChecking=no "$user@$ip" "(nmap -p- -sV $ip | grep open)" | tee nmap.txt
+  systemctl stop ssh
+
+}
+REMOTE
