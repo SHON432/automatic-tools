@@ -1,0 +1,181 @@
+#!/bin/bash
+
+start_time=$(date +%s)
+
+function ROOT()
+{
+if [ ! $(id -u) -eq 0 ]; then
+  echo "This script requires root privileges."
+  exit 
+ else 
+
+# Script continues only if EUID is 0 (root)
+echo "You are running as root."
+
+# Add your root-privileged commands here
+
+fi
+}
+ROOT
+
+function MEM()
+{
+ while true; do
+        echo "PLEASE ENTER THE FULL PATH OF THE MEMORT FILE"
+        read hdd
+        if [[ -f "$hdd" ]]; then
+            echo " your memory file is $hdd"
+            break
+        elif [[ -f "./$hdd" ]]; then
+             echo "your memory file is here , no worries"
+            break
+        else
+            echo "File '$hdd' not found. Please try again."
+        fi
+    done
+    
+   updatedb 
+sleep 1
+located_file=$(locate "$hdd" | head -n1)
+cp $located_file /home/$username/Desktop/vol
+}
+
+function VOLLA()
+{ 
+echo "please specify the current username that you are connected with"
+read username
+cd /home/$username/Desktop
+
+wget  https://github.com/volatilityfoundation/volatility/releases/download/2.6.1/volatility_2.6_lin64_standalone.zip > /dev/null 2>&1
+
+
+unzip volatility_2.6_lin64_standalone.zip > /dev/null 2>&1
+mkdir vol
+
+cd volatility_2.6_lin64_standalone
+mv volatility_2.6_lin64_standalone /home/$username/Desktop/vol
+cd /home/$username/Desktop
+
+rm -rf volatility_2.*
+
+chown $username:$username /home/$username/Desktop/vol
+chown $username:$username /home/$username/Desktop/vol/volatility_2.6_lin64_standalone
+cd /home/$username/Desktop/vol
+mv volatility_2.6_lin64_standalone volatility
+
+
+
+sleep 2
+
+MEM
+path=/home/$username/Desktop/vol
+
+sleep 2
+if  [ -z "$(./volatility -f $hdd imageinfo | grep -i 'Suggested Profile' | grep -i 'No suggestion')" ]
+then 
+echo "wonderfull job! thats a memory file"
+else 
+echo "its not a memory file, and cannot be analyzed with volatility"
+fi 
+
+profile=$(./volatility -f $hdd imageinfo | grep -i 'suggested profile' | awk '{print $4}' | sed 's/,/ /g')
+./volatility -f $hdd --profile=$profile pslist > $path/proccess_list
+./volatility -f $hdd --profile=$profile sockets > $path/connections
+./volatility -f $hdd --profile=$profile hivelist > $path/registry_scan
+./volatility -f $hdd --profile=$profile userassist > $path/registry_yser_scan
+}
+VOLLA
+
+
+
+function TOOLS()
+{
+    sudo apt-get update > /dev/null 2>&1
+# list of tools that i would use in this project 
+PACKAGES=( "foremost" "strings" "bulk_extractor" )
+echo "now we are going to check if some tools are installed and if not we are going to install them ... please wait"
+# goes throw every tool and checks 
+for pkg in "${PACKAGES[@]}"; do
+# see if the tool is installed
+    if ! dpkg -s "$pkg" | grep -q "Status: install ok installed"; then
+        echo "installing  $pkg..."
+# if the tool is not installed now we are installing the tool 
+        sudo apt-get install "$pkg" -y > /dev/null 2>&1
+    else
+# if the tool is already installed we would get this massage 
+        echo "$pkg is already installed "
+    fi
+done
+} 
+#TOOLS
+
+function CARVERS()
+{
+
+
+
+mkdir $path/foremost 
+chown $username:$username /home/$username/Desktop/vol/foremost
+foremost "$hdd" -o $path/foremost > /dev/null 2>&1
+chmod 777 $path/foremost
+mkdir $path/bulkextractor
+chmod 777 $path/bulkextractor
+bulk_extractor -o "$path/bulkextractor" "$hdd" > /dev/null 2>&1
+
+mkdir $path/strings
+strings $hdd | grep -i 'exe' > "$path/strings/strings_exe.txt"
+ strings $hdd | grep -i 'password' > "$path/strings/strings_passwords.txt"
+ strings $hdd | grep -i 'username' > "$path/strings/strings_username.txt"
+strings $hdd | grep -i 'http://' > "$path/strings/strings_websites.txt" 
+}
+CARVERS
+
+function pcap_file() {
+
+    # Check if there is exactly one .pcap file in the directory
+    pcap_file=$(find "$path/bulkextractor" -maxdepth 1 -name "*.pcap" -print -quit)
+
+    if [ -z "$pcap_file" ]; then
+        echo "No .pcap file found"
+    else
+        # Print the size of the .pcap file
+        size=$(du -h "$pcap_file" | awk '{print $1}')
+        echo -e pcap file found: $pcap_file, Size: $size
+    fi
+}
+pcap_file
+
+
+function statistics() {
+    path="/home/$username/Desktop/vol"
+    exe=( ".txt" ".pcap" "registry_yser_scan" "registry_scan" "connections" "proccess_list" "bulkextractor" ".dll" ".exe"
+    ".wav" ".gif")
+
+
+    total_count=0
+    for i in "${exe[@]}"; do
+        count=$(find "$path" -type f -name "*$i" | wc -l)
+       
+        total_count=$((total_count + count)) 
+        
+        cd $path
+        echo "$i: $count files found"   | tee -a results.txt
+    done
+
+    echo "Total files found: $total_count"  | tee -a results.txt
+}
+
+statistics
+
+end_time=$(date +%s)
+duration=$(( end_time - start_time ))
+echo "Script ran for $duration seconds"  | tee -a results.txt
+
+
+function savetozip() {
+	echo "Compressing your files into a zip file"
+    zip -r  /home/$username/Desktop/results $path > /dev/null 2>&1
+    chmod 777 /home/$username/Desktop/results.zip
+}
+
+savetozip
